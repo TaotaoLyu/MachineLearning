@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+Classification/timit_11
+
+CNN/food-11
+CNN/food-11.zip
+
+Self-attention/Dataset
+Self-attention/Dataset.zip
