@@ -226,3 +226,9 @@ Self-attention/Dataset
 Self-attention/Dataset.zip
 
 model.*
+
+DATA*
+
+checkpoints*
+
+faces*
