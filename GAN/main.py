@@ -149,7 +149,7 @@ class Discriminator(nn.Module):
             conv_bn_lrelu(dim*2, dim*4),
             conv_bn_lrelu(dim*4, dim*8),
             nn.Conv2d(dim*8, 1, 4),
-            nn.Sigmoid()
+            # nn.Sigmoid()
         )
         self.apply(weights_init)
 
@@ -164,8 +164,9 @@ z_dim=100
 z_sample=Variable(torch.randn(100, z_dim)).cuda()
 lr=1e-4
 
-n_epoch=30
-n_critic=1
+n_epoch=50
+n_critic=5
+clip_value=0.01
 
 log_dir=os.path.join(workspace_dir, 'logs')
 ckpt_dir=os.path.join(workspace_dir, 'checkpoints')
@@ -179,8 +180,12 @@ D.train()
 
 criterion=nn.BCELoss()
 
-opt_D=torch.optim.Adam(D.parameters(), lr=lr, betas=(0.5, 0.999))
-opt_G=torch.optim.Adam(G.parameters(), lr=lr, betas=(0.5, 0.999))
+# opt_D=torch.optim.Adam(D.parameters(), lr=lr, betas=(0.5, 0.999))
+# opt_G=torch.optim.Adam(G.parameters(), lr=lr, betas=(0.5, 0.999))
+
+
+opt_D = torch.optim.RMSprop(D.parameters(), lr=lr)
+opt_G = torch.optim.RMSprop(G.parameters(), lr=lr)
 
 
 from torch.utils.data import DataLoader
@@ -204,24 +209,30 @@ for e, epoch in enumerate(range(n_epoch)):
         f_label=torch.zeros((bs)).cuda()
 
 
-        r_logit=D(r_imgs.detach())
-        f_logit=D(f_imgs.detach())
+        # r_logit=D(r_imgs.detach())
+        # f_logit=D(f_imgs.detach())
 
-        r_loss=criterion(r_logit, r_label)
-        f_loss=criterion(f_logit, f_label)
-        loss_D=(r_loss+f_loss)/2
+        # r_loss=criterion(r_logit, r_label)
+        # f_loss=criterion(f_logit, f_label)
+        # loss_D=(r_loss+f_loss)/2
+        loss_D = -torch.mean(D(r_imgs)) + torch.mean(D(f_imgs))
 
 
         D.zero_grad()
         loss_D.backward()
         opt_D.step()
 
+        with torch.no_grad():
+            for p in D.parameters():
+                p.clamp_(-clip_value, clip_value)
+
         if steps%n_critic==0:
             z=Variable(torch.randn(bs, z_dim)).cuda()
             f_imgs=G(z)
-            f_logit=D(f_imgs)
+            # f_logit=D(f_imgs)
 
-            loss_G=criterion(f_logit, r_label)
+            # loss_G=criterion(f_logit, r_label)
+            loss_G = -torch.mean(D(f_imgs))
 
             G.zero_grad()
             loss_G.backward()
