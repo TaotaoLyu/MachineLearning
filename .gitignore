@@ -234,3 +234,7 @@ DATA*
 checkpoints*
 
 faces*
+
+data.zip
+
+fgsm*
