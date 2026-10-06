@@ -85,6 +85,22 @@ def fgsm(model, x, y, loss_fn, epsilon=epsilon):
 
     return x_adv.detach()
 
+
+def ifgsm(model, x, y, loss_fn, epsilon=epsilon, alpha=alpha, num_iter=20):
+    x_adv=x.detach().clone()
+    lower=torch.maximum(x.detach()-epsilon, -mean/std)
+    upper=torch.minimum(x.detach()+epsilon, (1-mean)/std)
+    for _ in range(num_iter):
+        x_adv.requires_grad_(True)
+        loss=loss_fn(model(x_adv), y)
+        grad=torch.autograd.grad(loss, x_adv)[0]
+        with torch.no_grad():
+            x_adv.add_(alpha*grad.sign())
+            x_adv.clamp_(min=lower, max=upper)
+        x_adv=x_adv.detach()
+    return x_adv
+
+
 import numpy as np
 def gen_adv_examples(model, loader, attack, loss_fn):
     model.eval()
@@ -130,38 +146,33 @@ print(f'fgsm_acc={fgsm_acc:.5f}, fgsm_loss={fgsm_loss:.5f}')
 
 create_dir(root, 'fgsm', adv_examples, adv_names)
 
+adv_examples, ifgsm_acc, ifgsm_loss=gen_adv_examples(model, adv_loader, ifgsm, loss_fn)
+print(f'ifgsm_acc={ifgsm_acc:.5f}, ifgsm_loss={ifgsm_loss:.5f}')
+
+create_dir(root, 'ifgsm', adv_examples, adv_names)
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
-plt.figure(figsize=(10, 20))
-cnt = 0
-for i, cls_name in enumerate(classes):
+comparisons = [('benign', root), ('FGSM', 'fgsm'), ('I-FGSM', 'ifgsm')]
+fig, axes = plt.subplots(len(classes), len(comparisons), figsize=(15, 25))
+for row, cls_name in enumerate(classes):
     path = f'{cls_name}/{cls_name}1.png'
-    # benign image
-    cnt += 1
-    plt.subplot(len(classes), 4, cnt)
-    im = Image.open(os.path.join(root, path))
-    logit = model(transform(im).unsqueeze(0).to(device))[0]
-    predict = logit.argmax(-1).item()
-    prob = logit.softmax(-1)[predict].item()
-    plt.title(f'benign: {cls_name}1.png\n{classes[predict]}: {prob:.2%}')
-    plt.axis('off')
-    plt.imshow(np.array(im))
-    # adversarial image
-    cnt += 1
-    plt.subplot(len(classes), 4, cnt)
-    im = Image.open(f'./fgsm/{path}')
-    logit = model(transform(im).unsqueeze(0).to(device))[0]
-    predict = logit.argmax(-1).item()
-    prob = logit.softmax(-1)[predict].item()
-    plt.title(f'adversarial: {cls_name}1.png\n{classes[predict]}: {prob:.2%}')
-    plt.axis('off')
-    plt.imshow(np.array(im))
+    for col, (label, image_dir) in enumerate(comparisons):
+        ax = axes[row, col]
+        with Image.open(os.path.join(image_dir, path)) as im:
+            with torch.no_grad():
+                logit = model(transform(im).unsqueeze(0).to(device))[0]
+                predict = logit.argmax(-1).item()
+                prob = logit.softmax(-1)[predict].item()
+            ax.set_title(f'{label}: {cls_name}1.png\n{classes[predict]}: {prob:.2%}')
+            ax.axis('off')
+            ax.imshow(np.array(im))
 plt.tight_layout()
-output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fgsm_comparison.png')
+output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fgsm_ifgsm_comparison.png')
 plt.savefig(output_path, dpi=200, bbox_inches='tight')
 plt.close()
 print(f'Comparison image saved to: {output_path}')
