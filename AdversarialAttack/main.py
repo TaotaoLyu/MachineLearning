@@ -4,6 +4,8 @@ import torch.nn as nn
 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 batch_size=8
 
+classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+
 cifar_10_mean=(0.491, 0.482, 0.447)
 cifar_10_std=(0.202, 0.199, 0.201)
 
@@ -87,15 +89,19 @@ def fgsm(model, x, y, loss_fn, epsilon=epsilon):
 
 
 def ifgsm(model, x, y, loss_fn, epsilon=epsilon, alpha=alpha, num_iter=20):
+    """Target ship for non-ship images, and dog for ship images."""
+    target_y=torch.full_like(y, classes.index('ship'))
+    target_y[y == classes.index('ship')]=classes.index('dog')
     x_adv=x.detach().clone()
     lower=torch.maximum(x.detach()-epsilon, -mean/std)
     upper=torch.minimum(x.detach()+epsilon, (1-mean)/std)
     for _ in range(num_iter):
         x_adv.requires_grad_(True)
-        loss=loss_fn(model(x_adv), y)
+        loss=loss_fn(model(x_adv), target_y)
         grad=torch.autograd.grad(loss, x_adv)[0]
         with torch.no_grad():
-            x_adv.add_(alpha*grad.sign())
+            # Minimize the target-label loss for a targeted attack.
+            x_adv.sub_(alpha*grad.sign())
             x_adv.clamp_(min=lower, max=upper)
         x_adv=x_adv.detach()
     return x_adv
@@ -155,9 +161,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-classes = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-
-comparisons = [('benign', root), ('FGSM', 'fgsm'), ('I-FGSM', 'ifgsm')]
+comparisons = [('benign', root), ('FGSM', 'fgsm'), ('I-FGSM (targeted)', 'ifgsm')]
 fig, axes = plt.subplots(len(classes), len(comparisons), figsize=(15, 25))
 for row, cls_name in enumerate(classes):
     path = f'{cls_name}/{cls_name}1.png'
@@ -172,7 +176,7 @@ for row, cls_name in enumerate(classes):
             ax.axis('off')
             ax.imshow(np.array(im))
 plt.tight_layout()
-output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fgsm_ifgsm_comparison.png')
+output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comparison.png')
 plt.savefig(output_path, dpi=200, bbox_inches='tight')
 plt.close()
 print(f'Comparison image saved to: {output_path}')
