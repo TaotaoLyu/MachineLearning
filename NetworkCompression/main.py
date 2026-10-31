@@ -58,7 +58,16 @@ def PointwiseConv(in_channels, out_channel):
 
 # [in_ch, H, W]=> [out_ch, H, W]
 def PointwiseGroupConv(in_channels, out_channels, group_size):
-    return nn.Conv2d(in_channels, out_channels, 1, groups=group_size)
+    # return nn.Conv2d(in_channels, out_channels, 1, groups=group_size)
+    return nn.Sequential(
+        nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=1,
+            groups=group_size,
+        ),
+        nn.ChannelShuffle(group_size)
+    )
 
 # [in_ch, H, W]=>[out_ch, H', W']   
 def DwPwConv(in_channels, out_channels, kernel_size):
@@ -67,6 +76,11 @@ def DwPwConv(in_channels, out_channels, kernel_size):
         PointwiseConv(in_channels, out_channels)
     )
 
+def DwPwGroupConv(in_channels, out_channels, kernel_size, group_size):
+    return nn.Sequential(
+        DeepwiseConv(in_channels, kernel_size),
+        PointwiseGroupConv(in_channels, out_channels, group_size)
+    )
 
 class StudentNet(nn.Module):
     def __init__(self):
