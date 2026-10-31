@@ -240,3 +240,5 @@ data.zip
 fgsm*
 
 ifgsm*
+
+teacher_net.ckpt
